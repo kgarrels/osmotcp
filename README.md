@@ -33,7 +33,7 @@ Usage for osmotcp.py is as follow:
 If you get a value out of range error, try running the program again.
 
 Here is screenshot of SDRTouch connected to osmotcp serving
-samples from rtl\_tcp=0
+samples from "rtl=0"
 
 ![Screenshot](screenshot.png)
 
