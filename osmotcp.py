@@ -9,12 +9,29 @@ import osmosdr
 import sys, struct, argparse, array
 
 
+def cast_stream(buf, byte=False, word=False, left=False):
+    try:
+        if word:
+            data = array.array('f', buf).tolist()
+            data = [ int(32768 * n)  for n in data ]
+            buf = array.array('h', data).tostring()
+        elif left:
+            data = array.array('f', buf).tolist()
+            data = [ (int(32768 * n) >> 8) + 128 for n in data ]
+            buf = array.array('B', data).tostring()
+        elif byte:
+            data = array.array('f', buf).tolist()
+            data = [ int(128 * n) + 128 for n in data ]
+            buf = array.array('B', data).tostring()
+        return buf
+    except:
+        print('sample value peaks out of range', file=sys.stderr)
+        return ""
+
+
 class queue_sink(gr.hier_block2):
 
     def __init__(self, options):
-        self.word = options['word']
-        self.float = options['float']
-        self.left = options['left']
         item_size = gr.sizeof_gr_complex
         gr.hier_block2.__init__(self, "queue_sink",
             gr.io_signature(1, 1, item_size),
@@ -25,22 +42,9 @@ class queue_sink(gr.hier_block2):
 		
     def next(self):
         msg = self.qu.delete_head()
-        data = msg.to_string()
-        if self.word:
-            data = array.array('f', data).tolist()
-            data = [ int(32768 * n)  for n in data ]
-            data = array.array('h', data).tostring()
-        elif self.left:
-            data = array.array('f', data).tolist()
-            data = [ (int(32768 * n) >> 8) + 128 for n in data ]
-            data = array.array('B', data).tostring()
-        elif not self.float: 
-            data = array.array('f', data).tolist()
-            data = [ int(128 * n) + 128 for n in data ]
-            data = array.array('B', data).tostring()
-        return data
+        return msg.to_string()
 
-	
+
 class radio_stream(gr.top_block):
 
     def __init__(self, options):
@@ -99,7 +103,7 @@ parser.add_argument("--corr", help="freq correction (ppm)", type=float)
 parser.add_argument("--gain", help="gain (dB)", type=float)
 parser.add_argument("--auto", help="turn on automatic gain", action="store_true")
 parser.add_argument("--word", help="signed word samples", action="store_true")
-parser.add_argument("--left", help="left justify samples", action="store_true")
+parser.add_argument("--left", help="left justified unsigned byte samples", action="store_true")
 parser.add_argument("--float", help="32-bit float samples", action="store_true")
 parser.add_argument("--host", help="host address", default="0.0.0.0")
 parser.add_argument("--port", help="port address", type=int, default=1234)
@@ -198,8 +202,11 @@ stream.initialize()
 stream.print_status()
 stream.start()
 
+args.byte = not args.left and not args.word and not args.float
+
 for data in stream:
 
+    data = cast_stream(data, byte=args.byte, word=args.word, left=args.left)
     readable, writable, exceptional = select.select(inputs, outputs, outputs, 0)
 
     for sock in outputs:
