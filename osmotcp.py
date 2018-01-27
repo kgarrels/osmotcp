@@ -202,6 +202,7 @@ def serve_connection():
         if output_file:
             output_file.write(data)
         data = cast_stream(data, byte=args.byte, word=args.word, left=args.left)
+
         readable, writable, exceptional = select.select(inputs, outputs, outputs, 0)
 
         for sock in outputs:
@@ -241,13 +242,19 @@ if args.output:
 try:
     serve_connection()
 except KeyboardInterrupt:
-    print("control-c caught, closing server")
-    stream.stop()
-    for sock in outputs:
-        print('closing %s:%s' % clients[sock], file=sys.stderr)
-        sock.close()
-    server.close()
-    if output_file:
-        print('closing file %s' % args.output, file=sys.stderr)
-        output_file.close()
+    print("control-c caught, closing server", file=sys.stderr)
+
+print('stopping device', file=sys.stderr)
+stream.stop()
+
+for sock in outputs:
+    print('closing %s:%s' % clients[sock], file=sys.stderr)
+    sock.close()
+server.close()
+
+if output_file:
+    print('closing file %s' % args.output, file=sys.stderr)
+    output_file.close()
+
+
 
