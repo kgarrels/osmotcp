@@ -14,23 +14,26 @@ Usage for osmotcp.py is as follow:
 
     usage: osmotcp.py [-h] [--args ARGS] [--freq FREQ] [--rate RATE] [--corr CORR]
                       [--gain GAIN] [--auto] [--word] [--left] [--float]
-                      [--host HOST] [--port PORT]
+                      [--host HOST] [--port PORT] [--output OUTPUT]
 
     optional arguments:
-      -h, --help   show this help message and exit
-      --args ARGS  device arguments
-      --freq FREQ  center frequency (Hz)
-      --rate RATE  sample rate (Hz)
-      --corr CORR  freq correction (ppm)
-      --gain GAIN  gain (dB)
-      --auto       turn on automatic gain
-      --word       signed word samples
-      --left       left justify samples
-      --float      32-bit float samples
-      --host HOST  host address
-      --port PORT  port address
+      -h, --help       show this help message and exit
+      --args ARGS      device arguments
+      --freq FREQ      center frequency (Hz)
+      --rate RATE      sample rate (Hz)
+      --corr CORR      freq correction (ppm)
+      --gain GAIN      gain (dB)
+      --auto           turn on automatic gain
+      --word           signed word samples
+      --left           left justified unsigned byte samples
+      --float          32-bit float samples
+      --host HOST      host address
+      --port PORT      port address
+      --output OUTPUT  output file to save 32-bit float samples
 
-If you get a value out of range error, try running the program again.
+Use the --output option to save raw float samples to a file while serving.
+The --left option multiplies the samples by 256.  This option is useful with
+the airspyhf+.
 
 Here is screenshot of SDRTouch connected to osmotcp serving
 samples from "rtl=0"
