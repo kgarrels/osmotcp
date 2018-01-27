@@ -102,12 +102,12 @@ parser.add_argument("--left", help="left justified unsigned byte samples", actio
 parser.add_argument("--float", help="32-bit float samples", action="store_true")
 parser.add_argument("--host", help="host address", default="0.0.0.0")
 parser.add_argument("--port", help="port address", type=int, default=1234)
+parser.add_argument("--output", help="output file to save 32-bit float samples")
 args = parser.parse_args()
 
 ########################################
 
 import select, socket
-
 
 # 0x07: rtlsdr_set_testmode(dev, ntohl(cmd.param));
 # 0x08: rtlsdr_set_agc_mode(dev, ntohl(cmd.param));
@@ -149,6 +149,7 @@ def handle_command(source, data):
         print('0x%02x unimplemented: %s' % (command, param), file=sys.stderr)
 
 
+
 # create socket
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -158,31 +159,7 @@ server.setblocking(0)  # set non-blocking mode
 server_address = (args.host, args.port)
 server.bind(server_address)
 server.listen(5)
-
-# tell user
 print('listening on %s port %s' % server_address, file=sys.stderr)
-
-
-def close_connection(sock):
-    print('closing %s:%s' % clients[sock], file=sys.stderr)
-    outputs.remove(sock)
-    inputs.remove(sock)
-    del readbuf[sock]
-    del clients[sock]
-    sock.close()
-    print('%d remaining connections' % len(outputs), file=sys.stderr)
-
-
-def open_connection(sock):
-    conn, client_address = sock.accept()
-    print('new connection from %s:%s' % client_address, file=sys.stderr)
-    conn.setblocking(0)
-    inputs.append(conn)
-    outputs.append(conn)
-    readbuf[conn] = ""
-    clients[conn] = client_address
-    print('%d open connections' % len(outputs), file=sys.stderr)
-
 
 # select
 inputs = [ server ]  # for reading
@@ -197,41 +174,80 @@ stream.initialize()
 stream.print_status()
 stream.start()
 
-args.byte = not args.left and not args.word and not args.float
+##############################################
 
-for data in stream:
+def close_connection(sock):
+    print('closing %s:%s' % clients[sock], file=sys.stderr)
+    outputs.remove(sock)
+    inputs.remove(sock)
+    del readbuf[sock]
+    del clients[sock]
+    sock.close()
+    print('%d remaining connections' % len(outputs), file=sys.stderr)
 
-    data = cast_stream(data, byte=args.byte, word=args.word, left=args.left)
-    readable, writable, exceptional = select.select(inputs, outputs, outputs, 0)
 
-    for sock in outputs:
-        if sock in exceptional:
-            print('exception %s:%s' % clients[sock], file=sys.stderr)
-            close_connection(sock)
+def open_connection(sock, client_address):
+    print('new connection from %s:%s' % client_address, file=sys.stderr)
+    sock.setblocking(0)
+    inputs.append(sock)
+    outputs.append(sock)
+    readbuf[sock] = ""
+    clients[sock] = client_address
+    print('%d open connections' % len(outputs), file=sys.stderr)
 
-    for sock in outputs:
-        if sock in writable:
-            try:
-                sock.send(data)
-            except socket.error:
-                print('bad write %s:%s' % clients[sock], file=sys.stderr)
+
+def serve_connection():
+    args.byte = not args.left and not args.word and not args.float
+    for data in stream:
+        if output_file:
+            output_file.write(data)
+        data = cast_stream(data, byte=args.byte, word=args.word, left=args.left)
+        readable, writable, exceptional = select.select(inputs, outputs, outputs, 0)
+
+        for sock in outputs:
+            if sock in exceptional:
+                print('exception %s:%s' % clients[sock], file=sys.stderr)
                 close_connection(sock)
 
-    for sock in inputs:
-        if sock in readable:
-            if sock is server:
-                open_connection(sock)
-            else:
-                data = sock.recv(command_size - len(readbuf[sock]))
-                if not data:
-                    print('bad read %s:%s' % clients[sock], file=sys.stderr)
+        for sock in outputs:
+            if sock in writable:
+                try:
+                    sock.send(data)
+                except socket.error:
+                    print('bad write %s:%s' % clients[sock], file=sys.stderr)
                     close_connection(sock)
+
+        for sock in inputs:
+            if sock in readable:
+                if sock is server:
+                    conn, client_address = sock.accept()
+                    open_connection(conn, client_address)
                 else:
-                    readbuf[sock] += data
-                    if len(readbuf[sock]) == command_size:
-                        if sock is outputs[0]:
-                            handle_command(stream.source, readbuf[sock])
-                        readbuf[sock] = ""
+                    data = sock.recv(command_size - len(readbuf[sock]))
+                    if not data:
+                        print('bad read %s:%s' % clients[sock], file=sys.stderr)
+                        close_connection(sock)
+                    else:
+                        readbuf[sock] += data
+                        if len(readbuf[sock]) == command_size:
+                            if sock is outputs[0]:
+                                handle_command(stream.source, readbuf[sock])
+                            readbuf[sock] = ""
 
+output_file = None
+if args.output:
+    output_file = open(args.output, "wb")
 
+try:
+    serve_connection()
+except KeyboardInterrupt:
+    print("control-c caught, closing server")
+    stream.stop()
+    for sock in outputs:
+        print('closing %s:%s' % clients[sock], file=sys.stderr)
+        sock.close()
+    server.close()
+    if output_file:
+        print('closing file %s' % args.output, file=sys.stderr)
+        output_file.close()
 
