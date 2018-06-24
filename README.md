@@ -23,6 +23,7 @@ Usage for osmotcp.py is as follow:
       --rate RATE      sample rate (Hz)
       --corr CORR      freq correction (ppm)
       --gain GAIN      gain (dB)
+      --peak       show peak values in dBFS
       --auto           turn on automatic gain
       --word           signed word samples
       --left           left justified unsigned byte samples
@@ -31,9 +32,16 @@ Usage for osmotcp.py is as follow:
       --port PORT      port address
       --output OUTPUT  output file to save 32-bit float samples
 
-Use the --output option to save raw float samples to a file while serving.
-The --left option multiplies the samples by 256.  This option is useful with
-the airspyhf+.
+Use the --output option to save raw 32bit float samples to a file while serving.
+
+By default the TCP server stream 8 bit unsigned samples.
+Use the --word or --float option to serve 16 bit IQ integers or 32 bit
+IQ floats instead.
+
+The --left option multiplies the raw 32 bit samples by 256 before serving.  
+This option is useful with the airspyhf+.
+
+Use --peak to print peak VU meter information to stderr.
 
 Here is screenshot of SDRTouch connected to osmotcp serving
 samples from "rtl=0"

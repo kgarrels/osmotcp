@@ -9,9 +9,17 @@ import osmosdr
 import sys, struct, argparse
 import numpy as np
 
+tick = 0
 
-def cast_stream(buf, byte=False, word=False, left=False):
+
+def cast_stream(buf, byte=False, word=False, left=False, peak=False):
     data = np.ndarray(shape=(len(buf)/4,), dtype='f', buffer=buf)
+    if peak:
+        global tick
+        n = max(abs(data.min()), abs(data.max()))
+        n = 20 * np.log10(n + .0000000001)
+        print("%6.1f dBFS (peak) %s " % (n, "/-\|"[tick % 4]), file=sys.stderr, end='\r') 
+        tick += 1
     if word:
         data = data * 32768
         buf = data.astype('h').tobytes()
@@ -96,13 +104,14 @@ parser.add_argument("--freq", help="center frequency (Hz)", type=float)
 parser.add_argument("--rate", help="sample rate (Hz)", type=float)
 parser.add_argument("--corr", help="freq correction (ppm)", type=float)
 parser.add_argument("--gain", help="gain (dB)", type=float)
+parser.add_argument("--peak", help="show peak values in dBFS", action="store_true")
 parser.add_argument("--auto", help="turn on automatic gain", action="store_true")
 parser.add_argument("--word", help="signed word samples", action="store_true")
 parser.add_argument("--left", help="left justified unsigned byte samples", action="store_true")
 parser.add_argument("--float", help="32-bit float samples", action="store_true")
+parser.add_argument("--output", help="output file to save 32-bit float samples")
 parser.add_argument("--host", help="host address", default="0.0.0.0")
 parser.add_argument("--port", help="port address", type=int, default=1234)
-parser.add_argument("--output", help="output file to save 32-bit float samples")
 args = parser.parse_args()
 
 ########################################
@@ -201,7 +210,7 @@ def serve_connection():
     for data in stream:
         if output_file:
             output_file.write(data)
-        data = cast_stream(data, byte=args.byte, word=args.word, left=args.left)
+        data = cast_stream(data, byte=args.byte, word=args.word, left=args.left, peak=args.peak)
 
         readable, writable, exceptional = select.select(inputs, outputs, outputs, 0)
 
