@@ -1,3 +1,5 @@
+BUG TO FIX: rtltcp clients expect a special header to be sent before anything else.  This header is sent by my soapytcp repo but not this repo.  I need to add the following to the top of the code: "tuner_number = 5 # R820T; tuner_gains = 29 # R820T; dongle_info = struct.pack('>4sII', b'RTL0', tuner_number, tuner_gains)" and then add "conn.sendall(dongle_info)" after "self.open_conn(conn, client_address)".  Not doing this causes for example HDSDR to fail when using another Extio besides mine.
+
 
 osmotcp.py
 ==========
